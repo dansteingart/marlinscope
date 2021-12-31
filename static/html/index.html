@@ -1,13 +1,15 @@
 <html>
     <head>
         <script src="/static/js/jquery-3.6.0.min.js"></script>
+        <script src="/static/js/js.cookie.min.js"></script>
         <script src="/socket.io/socket.io.js"></script>
         <style>
             body{font-family: Helvetica,Arial, sans-serif;}
             img{width:100%}
             input{outline: none; border:none;border-bottom: 1px solid black;text-align: right;width:50px;}
-            textarea{outline: none; border: 1px solid black;text-align: left;width:50px;  resize:vertical;height:300px}
-            .img{float:right;width:75%}
+            .status{height:20px;}
+            textarea{outline: none; border: 1px solid black;text-align: left;width:50px;  resize:vertical;height:150px}
+            .img{float:right;max-height:500px;width:60%;}
             .meta{width:200px;text-align:left}
             h2::selection{background: white;}
             .hider {visibility:hidden;}
@@ -24,10 +26,9 @@
         </style>
     </head>
     <body>
-        <h1>EnderScope 5000</h1>
         <div id="image" class="img"></div>
-
-
+        <h1>EnderScope 5000</h1>
+        <div id="status_shell" class="status"><span id="status"></span></div>
         <table>
             <tr><td>move x/y</td><td><input id='movexy' value=0.2> </input>mm</td></tr>
             <tr><td>move z</td><td><input id='movez' value=0.02> </input>mm</td></tr>
@@ -39,14 +40,15 @@
         <h2 id="meta_head">Meta</h2>
         <div id="meta_table">
             <table>
-                <tr><td>project</td><td><input id='project' class="meta"> </input></td></tr>
-                <tr><td>prefix</td><td><input id='user' class="meta" value="snap"> </input></td></tr>
-                <tr><td>user</td><td><input id='user' class="meta"> </input></td></tr>
-                <tr><td>date/time</td><td><input id='datetime' class="meta" readonly> </input></td></tr>
-                <tr><td>notes</td><td><textarea id='notes' class="meta"></textarea></td></tr>
+                <tr><td>project</td><td><input   attr="meta" id='project' class="meta"> </input></td></tr>
+                <tr><td>prefix</td><td><input    attr="meta" id='prefix' class="meta" value="snap"> </input></td></tr>
+                <tr><td>user</td><td><input      attr="meta" id='user' class="meta"> </input></td></tr>
+                <tr><td>date/time</td><td><input             id='datetime' class="meta" readonly> </input></td></tr>
+                <tr><td>notes</td><td><textarea  attr="meta" id='notes' class="meta"></textarea></td></tr>
                 
             </table>
         </div>
+
 
         <h2 id="v42l_head">Camera Controls</h2>
         <div id="v4l2_table"></div>
@@ -121,6 +123,42 @@
                         )
                     };
 
+            function get_camera_state()
+            {
+                cam_out = {}
+                cams = $('input[attr=v4l2_cntl]')
+                for (i = 0; i < cams.length;i++) 
+                {
+                 cam_out[cams[i].id.replace("#","")] = cams[i].value
+                }
+                return cam_out
+            }
+
+            function get_meta()
+            {
+                meta = {}
+                metas = $('[attr=meta]')
+                for (i = 0; i < metas.length;i++) 
+                {
+                    meta[metas[i].id.replace("#","")] = metas[i].value
+                }
+                return meta
+            }
+
+            function set_meta()
+            {
+                try
+                {
+                    meta = JSON.parse(Cookies.get("meta"))
+                    for (i in meta) $(`#${i}`).val(meta[i])
+                }
+                catch (error)
+                {
+                    console.log(error)
+                }
+
+            }
+
             function parse_v4l2_controls(str)
             {
                 cntls = str.trim().split("\n")
@@ -188,10 +226,32 @@
             
             function steppers_off(){$.get(`/writecf/M18 X Y Z`)}
 
+
+            function snapshot()
+            {
+                tt = new Date()
+                data = {}
+                data['project'] =$("#project").val()
+                data['prefix'] = $("#prefix").val()
+                data['user']   = $("#user").val()
+                data['position'] = {'x':$("#posX").val(),'y':$("#posY").val(),'z':$("#posZ").val()}
+                data['notes'] = $("#notes").val()
+                data['camera'] = get_camera_state();
+                data['date'] = tt.getTime();
+                console.log(data)
+                $.post("/snapshot",data,(res)=>{
+                    console.log(res);
+                    $("#status").html(`saved ${$("#project").val()}/${$("#prefix").val()}`)
+                    $("#status").fadeIn()
+                    $("#status").fadeOut("slow",()=>{$("#status").html("")})
+; 
+                })
+            }
+
+
             $(window).keydown((e)=>{
                 zz = parseFloat($("#movez").val())
                 xy = parseFloat($("#movexy").val())
-
                 if ($("input").is(":focus") == false & $("textarea").is(":focus") == false)
                 {
                     switch(e.originalEvent.keyCode)
@@ -204,6 +264,7 @@
                         case 83: move(0,0,-1*zz);break;
                         case 77: get_position();break;
                         case 79: steppers_off();break;
+                        case 67: snapshot();break;
                     }
                 }
 
@@ -211,8 +272,10 @@
 
 
             //on load
-
             $("#image").html(`<img src="${curl}/.?action=stream">`)
+
+            //fill meta from cookie
+            set_meta()
 
             //reset camera
             arb_exec(`
@@ -226,9 +289,19 @@
             $("#exec_head").toggle()
             $("#exec_list").toggle()
 
+
+            //register listeners
+            $('input[attr=meta]').change(()=>{Cookies.set("meta",JSON.stringify(get_meta()))});
             $("#posX").change((ev)=>{$("#absmoveX").val($("#posX").val())})
             $("#posY").change((ev)=>{$("#absmoveY").val($("#posY").val())})
             $("#posZ").change((ev)=>{$("#absmoveZ").val($("#posZ").val())})
+
+            //stop the scroll 
+            window.addEventListener("keydown", function(e) {
+            if(["Space","ArrowUp","ArrowDown"].indexOf(e.code) > -1) 
+            {e.preventDefault();}
+            }, false);
+
 
         </script>
 

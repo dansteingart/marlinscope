@@ -15,13 +15,14 @@ what will probably create farts/list of things to deal with later if I need to:
 - returning characters that html has issues with
 - spaces in the url
 
-TODO as of 2021-10-16:
+TODO as of 2021-12-29:
 
 [x] Update Parser and buffer handling
 [x] POST calls
 [x] check working with python-socketio (big yes!)
-[ ] v4l2 controls?
-
+[x] v4l2 controls
+[x] absolute movement (maybe consolidate fields later)
+[ ] project saving, hard edge
 
 
 */
@@ -30,7 +31,7 @@ parts = process.argv
 
 if (parts.length < 6)
 {
-	console.log("usage: node nodeforwader.js [HTTP PORT] [SERIAL PORT] [BAUD] [BUFFER LENGTH] [LOG=YES optional]")
+	console.log("usage: node server.js [HTTP PORT] [SERIAL PORT] [BAUD] [BUFFER LENGTH] [LOG=YES optional]")
 	process.exit(1);
 }
 
@@ -47,9 +48,7 @@ var logfile = false;
 if (parts.length == 7) logfile = true;
 
 const {exec} = require('child_process');
-
 var bodyParser = require('body-parser');
-
 var express = require('express');
 var app = express();
 var fs = require('fs');
@@ -59,14 +58,12 @@ var io = require('socket.io')(server,{cors:{methods: ["GET", "POST"]}});
 
 server.listen(hp);
 
-
 var sleep = require("sleep").sleep
 var SerialPort = require("serialport"); //per ak47 fix
 var serialPort = new SerialPort(sp,
 	{
   	  baudRate: baud
 	});
-
 
 serialPort.on("open", function () { console.log('open');});  
 
@@ -75,13 +72,12 @@ serialPort.on("close", function () {
     	var serialPort = new SerialPort(sp,{baudrate: baud});
 }); 
 
-//sleep for 5 seconds for arduino serialport purposes
+//sleep for x seconds for arduino serialport purposes
 for (var i=0; i<3; i++ )
 {
 	console.log(i);
 	sleep(1); 
 }
-
 
 //On Data fill a circular buf of the specified length
 buf = ""
@@ -103,10 +99,8 @@ app.use(cors())
 app.use('/static',express.static('static'))
 //app.use(express.static('files'))
 
-
 //Allows us to rip out data?
 app.use(bodyParser.urlencoded({extended:true})); //deprecated not sure what to do here....
-
 
 //Write to serial port
 app.get('/write/*',function(req,res){	
@@ -125,7 +119,7 @@ app.get('/writecf/*',function(req,res){
 	res.send(toSend)
 });
 
-//supppppeeer dangerous but I'm being lazy now
+//suuuuuuupppeeer dangerous but I'm being lazy now
 app.post("/exec",function(req,res){    
 	x = req.body
 	toExec = x['payload']
@@ -140,7 +134,35 @@ app.post("/run",function(req,res){
 	
 });
 
+//snapshot saving
+app.post("/snapshot",function(req,res){    
+	project       = req.body['project']
+	prefix        = req.body['prefix']
+	user          = req.body['user']
+	date          = req.body['date']
+	notes         = req.body['notes']
+	position      = req.body['position']
+	settings      = JSON.parse(fs.readFileSync("settings.json"))
+	projects_path = settings["projects_path"]
+	snapshot_url  = settings["snapshot_url"]
 
+	//console.log(req.body)
+
+	//we're going to save the snapshot to a give (project) (dir) with the following format
+	fn = `${projects_path}/${project}/${prefix}_${position['x']}_${position['y']}_${position['z']}_${date}.jpg`
+	fnl = fn.replace(".jpg",".json")
+	cmd = `curl ${snapshot_url} --create-dirs --output ${fn}`
+	log = req.body
+	log['fn'] = fn
+	console.log(log)
+	exec(cmd, (error, stdout, stderr) => {
+
+		var logStream = fs.createWriteStream(fnl, {flags: 'a'});
+		logStream.end(JSON.stringify(log)+"\n");
+		res.send({'status':'success','stdout':stdout,'stderr':stderr})
+	})
+
+});
 
 //#expects data to be in {'payload':data} format
 app.post('/write',function(req,res){    
@@ -151,7 +173,6 @@ app.post('/write',function(req,res){
 	res.send(toSend)
 });
 
-
 //Show Last Updated
 app.get('/lastread/',function(req,res){	
 	lhs = lh.toString();
@@ -159,35 +180,25 @@ app.get('/lastread/',function(req,res){
 	res.send(lhs)
 });
 
-
 //read buffer
 app.get('/read/', function(req, res){
 	res.send(buf)
 });
 
-
-
 //weak interface
 app.get('/', function(req, res){
-    res.sendFile(__dirname + '/index.html');
+    res.sendFile(__dirname + '/static/html/index.html');
 });
 
 setInterval(()=>{serialPort.write("M114\r\n")},250)
 
-
 app.get('/serial', function(req, res){
-    res.sendFile(__dirname + '/readout.html');
+    res.sendFile(__dirname + '/static/html/serial.html');
 });
 
 //sockets
 io.on('connection', function(socket){
-  io.emit('data',buf)
-  socket.on('input', function(msg){
-   //console.log('message: ' + msg);
-	serialPort.write(msg+"\r\n")
-	
-  });
+	io.emit('data',buf);
+	socket.on('input', function(msg){serialPort.write(msg+"\r\n")});
 });
 
-// on load
-//turn off autoexposure
