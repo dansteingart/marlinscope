@@ -74,9 +74,12 @@
             surl = `http://${window.location.hostname}:${window.location.port}`
             curl = `http://${window.location.hostname}:8181`
 
-            poslog = ""
             var socket = io();
-            socket.on('data', (msg) => {
+            socket.on('data', (msg) => {find_position(msg)})
+ 
+            poslog = ""
+            function find_position(msg)
+            {
                 poslog += msg
                 pat = /(?=X)(.*?)(?=Count)/g
                 last_pos = [...poslog.matchAll(pat)]
@@ -87,8 +90,8 @@
                     parse_position(last_pos[last_pos.length-1][0])
                     poslog="";
                 }
-            })
- 
+            }
+            
             function parse_position(str)
             {
                 parts = str.trim().split(" ")
@@ -107,8 +110,7 @@
             v4l2_ctl = undefined
             kk = undefined
             function get_v4l2_ctl(){
-                $.post(`/run`,
-                        data={'payload':"v4l2-ctl -l"},
+                $.post(`/v4l2-ctl-list`,
                         (data)=>{
                             v4l2_ctl = parse_v4l2_controls(data['stdout']);
                             v4l2_tab = make_v4l2_table(v4l2_ctl);

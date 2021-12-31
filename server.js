@@ -15,14 +15,17 @@ what will probably create farts/list of things to deal with later if I need to:
 - returning characters that html has issues with
 - spaces in the url
 
-TODO as of 2021-12-29:
+TODO as of 2021-12-31:
 
 [x] Update Parser and buffer handling
 [x] POST calls
-[x] check working with python-socketio (big yes!)
 [x] v4l2 controls
 [x] absolute movement (maybe consolidate fields later)
-[ ] project saving, hard edge
+[x] project saving
+[ ] move some functionality to server for broader API ease
+	[x] position get
+	[x] v4l2-list
+	[ ] v4l2-set [hard edge]
 
 
 */
@@ -60,11 +63,7 @@ server.listen(hp);
 
 var sleep = require("sleep").sleep
 var SerialPort = require("serialport"); //per ak47 fix
-var serialPort = new SerialPort(sp,
-	{
-  	  baudRate: baud
-	});
-
+var serialPort = new SerialPort(sp,{baudRate: baud});
 serialPort.on("open", function () { console.log('open');});  
 
 serialPort.on("close", function () { 
@@ -73,11 +72,8 @@ serialPort.on("close", function () {
 }); 
 
 //sleep for x seconds for arduino serialport purposes
-for (var i=0; i<3; i++ )
-{
-	console.log(i);
-	sleep(1); 
-}
+for (var i=0; i<3; i++ ){console.log(i);sleep(1); }
+
 
 //On Data fill a circular buf of the specified length
 buf = ""
@@ -90,8 +86,54 @@ serialPort.on('data', function(data) {
    lh = new Date().getTime()
    if (buf.length > blen) buf = buf.substr(buf.length-blen,buf.length) 
    io.emit('data', data.toString('utf8'));
-   
+   current_position = find_position(buf);   
 });
+
+//helper fuctions
+function parse_v4l2_controls(str)
+{
+	cntls = str.trim().split("\n")
+	obj = {}
+	for (c in cntls)
+	{
+		cntl = cntls[c].trim().split(":")
+		nn = cntl[0].split(" ")[0]
+		obj[nn] = {}
+		obj[nn]['hex']  = cntl[0].split(" ")[1]
+		obj[nn]['type'] = cntl[0].split(" ")[2]
+		for (a in cntl[1].trim().split(" "))
+		{
+			aa = cntl[1].trim().split(" ")[a].split("=");
+			obj[nn][aa[0]]=aa[1]
+		}
+	}
+	return obj
+}
+
+poslog = ""
+current_position = undefined
+function find_position(msg)
+{
+	poslog += msg
+	pat = /(?=X)(.*?)(?=Count)/g
+	last_pos = [...poslog.matchAll(pat)]
+	if (last_pos.length > 0)
+	{
+		out = parse_position(last_pos[last_pos.length-1][0])
+		poslog="";
+		return out
+	}
+}
+
+function parse_position(str)
+{
+	parts = str.trim().split(" ")
+	obj = {}
+	for (p in parts) obj[parts[p].split(":")[0]] = parts[p].split(":")[1]
+	return obj
+}
+
+
 
 //Enable Cross Site Scripting
 app.use(cors())
@@ -127,11 +169,21 @@ app.post("/exec",function(req,res){
 	res.send({'status':'doing it'})
 });
 
+//get and parse out v42l controls as JSON
+app.post("/v4l2-ctl-list",function(req,res){    
+	exec("v4l2-ctl -l", (error, stdout, stderr) => {
+		ctls = parse_v4l2_controls(stdout)
+		res.send({'status':'success','stdout':stdout,'stderr':stderr,'ctls':ctls})
+	})
+});
+
+//send current position
+app.get("/get_current_position",(req,res)=>{res.send({'status':'success','current_position':current_position})});
+
 app.post("/run",function(req,res){    
-	x = req.body
-	toExec = x['payload']
-	exec(toExec, (error, stdout, stderr) => {res.send({'status':'success','stdout':stdout,'stderr':stderr})})
-	
+	exec(req.body['payload'], (error, stdout, stderr) => {
+		res.send({'status':'success','stdout':stdout,'stderr':stderr})
+	})
 });
 
 //snapshot saving
