@@ -152,10 +152,8 @@
                     meta = JSON.parse(Cookies.get("meta"))
                     for (i in meta) $(`#${i}`).val(meta[i])
                 }
-                catch (error)
-                {
-                    console.log(error)
-                }
+                catch (error) {console.log(error)}
+                
 
             }
 
