@@ -143,6 +143,7 @@ app.use('/static',express.static('static'))
 
 //Allows us to rip out data?
 app.use(bodyParser.urlencoded({extended:true})); //deprecated not sure what to do here....
+app.use(bodyParser.json())
 
 //Write to serial port
 app.get('/write/*',function(req,res){	
@@ -187,18 +188,20 @@ app.post("/run",function(req,res){
 });
 
 //snapshot saving
-app.post("/snapshot",function(req,res){    
-	project       = req.body['project']
-	prefix        = req.body['prefix']
-	user          = req.body['user']
-	date          = req.body['date']
-	notes         = req.body['notes']
-	position      = req.body['position']
+app.post("/snapshot",function(req,res){ 
+	try  {x = JSON.parse(req['body'])}
+	catch (e)  {x = req['body']}   
+	console.log(x)
+	project       = x['project']
+	prefix        = x['prefix']
+	user          = x['user']
+	date          = x['date']
+	notes         = x['notes']
+	position      = x['position']
 	settings      = JSON.parse(fs.readFileSync("settings.json"))
 	projects_path = settings["projects_path"]
 	snapshot_url  = settings["snapshot_url"]
 
-	//console.log(req.body)
 
 	//we're going to save the snapshot to a give (project) (dir) with the following format
 	fn = `${projects_path}/${project}/${prefix}_${position['x']}_${position['y']}_${position['z']}_${date}.jpg`
