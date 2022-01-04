@@ -6,6 +6,7 @@
     <head>
         <script src="/static/js/jquery-3.6.0.min.js"></script>
         <script src="/static/js/js.cookie.min.js"></script>
+        <script src="/static/js/gamecontroller.min.js"></script>
         <script src="/socket.io/socket.io.js"></script>
         <style>
             body{font-family: Helvetica,Arial, sans-serif;}
@@ -36,15 +37,15 @@
         <table>
             <tr><td>move x/y</td><td><input id='movexy' value=0.2> </input>mm</td></tr>
             <tr><td>move z</td><td><input id='movez' value=0.02> </input>mm</td></tr>
-            <tr><td>X</td><td><input id='posX' value=1 readonly> </input>mm</td></tr>
-            <tr><td>Y</td><td><input id='posY' value=1 readonly> </input>mm</td></tr>
-            <tr><td>Z</td><td><input id='posZ' value=1 readonly> </input>mm</td></tr>
+            <tr><td>X</td><td><input id='posX' value=1 readonly> </input>mm</td><td><button attr='mvb' id='xb' title='⬅️'>x-</button><button attr='mvb' id='xf' title='➡️'>x+</button></td></tr>
+            <tr><td>Y</td><td><input id='posY' value=1 readonly> </input>mm</td><td><button attr='mvb' id='yb' title='⬇️'>y-</button><button attr='mvb' id='yf' title='⬆️'>y+</button></td></tr>
+            <tr><td>Z</td><td><input id='posZ' value=1 readonly> </input>mm</td><td><button attr='mvb' id='zb' title='s'>z-</button><button attr='mvb' id='zf' title='w'>z+</button></td></tr>
         </table>
 
         <h2 id="meta_head">Meta</h2>
         <div id="meta_table">
             <table>
-                <tr><td>project</td><td><input   attr="meta" id='project' class="meta"> </input></td></tr>
+                <tr><td>project</td><td><input   attr="meta" id='project' class="meta"> </input></td><td><button id="snapshot">📸</button></td></tr>
                 <tr><td>prefix</td><td><input    attr="meta" id='prefix' class="meta" value="snap"> </input></td></tr>
                 <tr><td>user</td><td><input      attr="meta" id='user' class="meta"> </input></td></tr>
                 <tr><td>date/time</td><td><input             id='datetime' class="meta" readonly> </input></td></tr>
@@ -273,6 +274,60 @@
                 }
 
             })
+
+            //buttons for the olds, or youngs I guess
+            $("#xf").click((e)=>{xy = parseFloat($("#movexy").val());move( xy,0,0)})
+            $("#xb").click((e)=>{xy = parseFloat($("#movexy").val());move(-xy,0,0)})
+            $("#yf").click((e)=>{xy = parseFloat($("#movexy").val());move(0, xy,0)})
+            $("#yb").click((e)=>{xy = parseFloat($("#movexy").val());move(0,-xy,0)})
+            $("#zf").click((e)=>{xy = parseFloat($("#movezz").val());move(0,0, zz)})
+            $("#zb").click((e)=>{xy = parseFloat($("#movezz").val());move(0,0,-zz)})
+            $("#snapshot").click((e)=>{snapshot();})
+
+            //gamepad!
+            keymap = [['up',"U"],['down',"D"],['left',"L"],['right',"R"],['button0',"X"],['button1',"A"],['button2',"B"],['button3',"Y"],['button4',"TL"],['button5',"TR"],['button8',"select"],['button9',"start"]]
+            jog = false;
+            gameControl.on('connect',(gp)=>{for (let i = 0; i < keymap.length;i++) 
+                {
+                    gp.before(keymap[i][0],()=>{
+                        switch(keymap[i][1])
+                        {
+                            case "Y": jog=true; break;
+                            case "U": case "D": case "L": case "R": case "TR": case "TL": case "A": game_move(keymap[i][1]);
+                        }
+                    })
+                    .on(keymap[i][0],()=>{
+                        switch(keymap[i][1])
+                        {
+                            case "U": case "D": case "L": case "R": case "TR": case "TL": if(jog)game_move(keymap[i][1]);break;
+                        }
+                    })
+                    .after(keymap[i][0],()=>{
+                        switch(keymap[i][1])
+                        {
+                            case "Y": jog=false;break;
+                        }})
+                }})
+            function game_move(dir)
+            {
+                zz = parseFloat($("#movez").val())
+                xy = parseFloat($("#movexy").val())
+                switch(dir)
+                {
+                    case "L": move(-1*xy,0,0); break;
+                    case "R": move(1*xy,0,0);break;
+                    case "U": move(0,1*xy,0);break;
+                    case "D": move(0,-1*xy,0);break;
+                    case "TR": move(0,0,zz);break;
+                    case "TL": move(0,0,-1*zz);break;
+                    case "A" : snapshot(); break;
+                    // case 77: get_position();break;
+                    // case 79: steppers_off();break;
+                    // case 67: snapshot();break;
+
+                }
+
+            }
 
 
             //on load

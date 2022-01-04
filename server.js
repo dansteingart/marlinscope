@@ -193,7 +193,7 @@ app.post("/snapshot",function(req,res){
 	try  {x = JSON.parse(req['body'])}
 	catch (e)  {x = req['body']}   
 	console.log(x)
-	project       = x['project']
+	project       = x['project'].replaceAll("/","_")
 	prefix        = x['prefix']
 	user          = x['user']
 	date          = x['date']
@@ -223,7 +223,6 @@ app.post("/snapshot",function(req,res){
 //get projects
 app.post("/projects",(req,res)=>{
 	x = req.body;
-	
 	if (x['project'] == undefined) glob("files/*",(e,files)=>{res.send(files)})
 	else glob(`files/${x['project']}/*.jpg`,(e,files)=>{res.send(files)})
 })
