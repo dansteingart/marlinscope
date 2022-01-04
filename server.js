@@ -55,6 +55,7 @@ var bodyParser = require('body-parser');
 var express = require('express');
 var app = express();
 var fs = require('fs');
+var glob = require("glob")
 var cors = require('cors')
 const server = require('http').createServer(app);
 var io = require('socket.io')(server,{cors:{methods: ["GET", "POST"]}});
@@ -139,7 +140,7 @@ function parse_position(str)
 app.use(cors())
 
 app.use('/static',express.static('static'))
-//app.use(express.static('files'))
+app.use('/files',express.static('files'))
 
 //Allows us to rip out data?
 app.use(bodyParser.urlencoded({extended:true})); //deprecated not sure what to do here....
@@ -219,6 +220,16 @@ app.post("/snapshot",function(req,res){
 
 });
 
+//get projects
+app.post("/projects",(req,res)=>{
+	x = req.body;
+	
+	if (x['project'] == undefined) glob("files/*",(e,files)=>{res.send(files)})
+	else glob(`files/${x['project']}/*.jpg`,(e,files)=>{res.send(files)})
+})
+
+
+
 //#expects data to be in {'payload':data} format
 app.post('/write',function(req,res){    
 	x = req.body
@@ -231,25 +242,20 @@ app.post('/write',function(req,res){
 //Show Last Updated
 app.get('/lastread/',function(req,res){	
 	lhs = lh.toString();
-	console.log(lhs)
 	res.send(lhs)
 });
 
 //read buffer
-app.get('/read/', function(req, res){
-	res.send(buf)
-});
+app.get('/read/', function(req, res){ res.send(buf) });
 
-//weak interface
-app.get('/', function(req, res){
-    res.sendFile(__dirname + '/static/html/index.html');
-});
 
 setInterval(()=>{serialPort.write("M114\r\n")},250)
 
-app.get('/serial', function(req, res){
-    res.sendFile(__dirname + '/static/html/serial.html');
-});
+//weak interface
+app.get('/', function(req, res){ res.sendFile(__dirname + '/static/html/index.html');});
+app.get('/serial',   function(req, res){ res.sendFile( __dirname + '/static/html/serial.html');});
+app.get('/projects*', function(req, res){ res.sendFile( __dirname + '/static/html/projects.html');});
+
 
 //sockets
 io.on('connection', function(socket){

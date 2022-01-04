@@ -1,0 +1,94 @@
+<head>
+    <link rel=StyleSheet HREF="/static/style/jquery.dataTables.min.css">	
+    <script src="/static/js/jquery-3.6.0.min.js"></script>
+    <script src="/static/js/jquery.dataTables.min.js"></script>
+    <script src="/static/js/js.cookie.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body{font-family: Helvetica,Arial, sans-serif;}
+        img{width:40vw;}
+        /* input{outline: none; border:none;border-bottom: 1px solid black;text-align: right;width:50px;} */
+        .status{height:20px;}
+        textarea{outline: none; border: 1px solid black;text-align: left;width:50px;  resize:vertical;height:150px}
+        .img{width:300px;}
+        .meta{width:200px;text-align:left}
+        h2::selection{background: white;}
+        .hider {visibility:hidden;}
+        .shower {visibility:visible;}
+        .terminal{
+            background:black;
+            color:green;
+            white-space:pre-wrap;
+            font-family: 'Courier New', Courier, monospace;
+            
+        }
+
+    </style>
+</head>
+<body>
+    <div id="tabs"></div>
+    <script>
+        page = window.location.pathname;
+
+        function projects()
+        {
+            $.post("/projects",(data)=>{
+                out = "<h2>Projects</h2>\n"
+                out+= "<ul>"
+                for (d in data)
+                {
+                    project = data[d].replace("files/","")
+                    out+= `<li><a href='/projects/${project}'>${project}</a></li>\n`
+                }
+                out+="</ul>"    
+                    
+                $("#tabs").html(out);                
+            })
+        }
+
+        function table(flist)
+        {
+            proj = page.split("/")[2]
+
+            out = "<table id='project'>\n"
+            out+= "<thead><tr><th>img</th><th>settings</th><th>x</th><th>y</th><th>z</th><th>time</th></tr><thead>\n<tbody>\n"
+            for (f in flist)
+            {
+                fn  = flist[f]
+                parts = fn.split("_")
+                d = parts[parts.length-1].replace(".jpg","")
+                D = new Date(parseInt(d)).toLocaleString();
+                z = parts[parts.length-2]         
+                y = parts[parts.length-3]
+                i = `<img src='/${fn}'>`         
+                x = parts[parts.length-4]    
+                a = fn.replace(`files/${proj}/`,"").replace(`_${x}_${y}_${z}_${d}.jpg`,"")
+                l = `<a href='/${fn}'>${i}</a>`
+                a = `<a href='/${fn.replace(".jpg",".json")}'>${a}</a>`
+                out+= `<tr><td class='img'>${l}</td><td>${a}</a><td>${x}</td><td>${y}</td><td>${z}</td><td>${D}</td></tr>\n`
+            }
+            out+="</tbody>\n</table>"
+            return out
+        }
+
+        function project(page)
+        {
+            page = page.split("/")[2]
+            $.post("/projects/",data={'project':page},(data)=>
+            {
+                $("#tabs").html(table(data)); 
+                $('#project').DataTable(
+                    {
+                        "order": [[ 5, 'desc' ]],
+                        "lengthMenu": [ [50, 100, -1], [50, 100, "All"] ]
+
+                    }
+                );
+               
+            });
+        }
+        if (page == "/projects" || page == "/projects/") projects();
+        else if(page.split("/").length == 3) project(page);
+    </script>
+</body>
+</html>
