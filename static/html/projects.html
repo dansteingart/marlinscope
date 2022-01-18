@@ -62,7 +62,8 @@
                 y = parts[parts.length-3]
                 i = `<img src='/${fn}'>`         
                 x = parts[parts.length-4]    
-                a = fn.replace(`files/${proj}/`,"").replace(`_${x}_${y}_${z}_${d}.jpg`,"")
+                //a = fn.replace(`files/${proj}/`,"").replace(`_${x}_${y}_${z}_${d}.jpg`,"")
+                a = fn.replace(`files/${proj}/`,"").replace(`_${d}.jpg`,"")
                 l = `<a href='/${fn}'>${i}</a>`
                 a = `<a href='/${fn.replace(".jpg",".json")}'>${a}</a>`
                 out+= `<tr><td class='img'>${l}</td><td>${a}</a><td>${x}</td><td>${y}</td><td>${z}</td><td>${D}</td></tr>\n`
