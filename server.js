@@ -166,8 +166,10 @@ app.get('/writecf/*',function(req,res){
 //suuuuuuupppeeer dangerous but I'm being lazy now
 app.post("/exec",function(req,res){    
 	x = req.body
+	channel = x['channel']
+	if (channel == undefined) channel = 'exec'
 	toExec = x['payload']
-	exec(toExec, (error, stdout, stderr) => {io.emit('exec',stdout+"|"+stderr)})
+	exec(toExec, (error, stdout, stderr) => {io.emit(channel,stdout+"|"+stderr)})
 	res.send({'status':'doing it'})
 });
 

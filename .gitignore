@@ -2,3 +2,4 @@ node_modules/
 *.swp
 files/*
 .DS_Store
+scope_start.sh

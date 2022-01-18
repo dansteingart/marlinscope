@@ -1,6 +1,7 @@
 <html>
     <!-- to do: 
         [ ] - position memory?
+        [ ] - zscan controls
     
     -->
     <head>
@@ -54,6 +55,10 @@
             </table>
         </div>
 
+        <h2 id='zscan_head'>Z Scan</h2>
+        <table id='zscan_table'>
+        <tr><td>Z endpoint (> current)</td><td><input id='z2'></input>mm</td><td><button id="do_zscan">go</button></td></tr>
+        </table>
 
         <h2 id="v42l_head">Camera Controls</h2>
         <div id="v4l2_table"></div>
@@ -110,7 +115,7 @@
             }
 
             // functions for v4l2 stuffs
-            function arb_exec(cmd){$.post(`/exec`,data={'payload':cmd})};
+            function arb_exec(cmd,channel='exec'){$.post(`/exec`,data={'payload':cmd,'channel':channel})};
 
             v4l2_ctl = undefined
             kk = undefined
@@ -196,9 +201,8 @@
             }
 
             $("#v42l_head").click(()=>{$("#v4l2_table").toggle()})
-            
+            $("#zscan_head").click(()=>{$("#zscan_table").toggle()})            
             $("#exec_head").click(()=>{$("#exec_list").toggle()})
-            
             $("#abs_move_head").click(()=>{$("#abs_move_table").toggle()})
 
             $("#absmove").click(() =>
@@ -213,6 +217,22 @@
             //Let's execute arbirary code!
             $("#exec_send").click(()=>{arb_exec($("#exec_in").val())})
             socket.on('exec',(msg) =>{$("#exec_out").html(msg)});
+            socket.on('zscan',(msg) =>{console.log("zscan: "+msg)});
+
+            //auto zscan
+            function zscan()
+            {
+                z2 = $("#z2").val();
+                z1 = $("#posZ").val();
+                project = $("#project").val();
+                prefix  = $("#prefix").val(); 
+                user  = $("#prefix").val(); 
+
+                cmd = `python3 /home/pi/pithy/code/enderscope_z_scan.py prefix=${prefix} project=${project} user=${user} z1=${z1} z2=${z2}`
+                arb_exec(cmd,channel="zscan");
+            }
+
+            $("#do_zscan").click(zscan);
 
             //stage control
             function move(x,y,z)
@@ -343,6 +363,7 @@
             v4l2-ctl -c gamma=100`)
             //get controls
             get_v4l2_ctl();
+            $("#zscan_table").toggle();
             $("#abs_move_table").toggle();
             //hide spooky scary
             $("#exec_head").toggle()
