@@ -51,6 +51,8 @@ var logfile = false;
 if (parts.length == 7) logfile = true;
 
 const {exec} = require('child_process');
+const {spawn} = require('child_process');
+
 var bodyParser = require('body-parser');
 var express = require('express');
 var app = express();
@@ -172,6 +174,20 @@ app.post("/exec",function(req,res){
 	exec(toExec, (error, stdout, stderr) => {io.emit(channel,stdout+"|"+stderr)})
 	res.send({'status':'doing it'})
 });
+
+app.post("/proc",function(req,res){    
+	x = req.body
+	channel = x['channel']
+	if (channel == undefined) channel = 'exec'
+	cmd = x['payload']
+	p1 = cmd.split(" ")[0]
+	p2 = cmd.split(" ").slice(1)
+	test = spawn(p1,p2)
+	test.stdout.on('data',(data)=>{io.emit(channel,data.toString())})
+	test.stderr.on('data',(data)=>{io.emit(channel+"_err",data.toString())})
+	res.send({'status':'doing it'})
+});
+
 
 //get and parse out v42l controls as JSON
 app.post("/v4l2-ctl-list",function(req,res){    

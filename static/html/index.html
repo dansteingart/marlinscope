@@ -1,7 +1,7 @@
 <html>
     <!-- to do: 
         [ ] - position memory?
-        [ ] - zscan controls
+        [x] - zscan controls
     
     -->
     <head>
@@ -58,6 +58,7 @@
         <h2 id='zscan_head'>Z Scan</h2>
         <table id='zscan_table'>
         <tr><td>Z endpoint (> current)</td><td><input id='z2'></input>mm</td><td><button id="do_zscan">go</button></td></tr>
+        <tr><td id='zscanstatus'>done</td></tr>
         </table>
 
         <h2 id="v42l_head">Camera Controls</h2>
@@ -69,6 +70,7 @@
             <tr><td>X</td><td><input id='absmoveX'> </input>mm</td><td><button id="absmove">go</button></td></tr>
             <tr><td>Y</td><td><input id='absmoveY'> </input>mm</td></tr>
             <tr><td>Z</td><td><input id='absmoveZ'> </input>mm</td></tr>
+            <tr><td><button id="zero">zero</button></td></tr>
         </table>
         </div>
 
@@ -116,6 +118,7 @@
 
             // functions for v4l2 stuffs
             function arb_exec(cmd,channel='exec'){$.post(`/exec`,data={'payload':cmd,'channel':channel})};
+            function arb_proc(cmd,channel='exec'){$.post(`/proc`,data={'payload':cmd,'channel':channel})};
 
             v4l2_ctl = undefined
             kk = undefined
@@ -214,22 +217,28 @@
                 }
             )
 
+            $("#zero").click(()=>{$.post(`/write`,data={'payload':`G92 X0 Y0 Z0\n`})})
+
             //Let's execute arbirary code!
             $("#exec_send").click(()=>{arb_exec($("#exec_in").val())})
             socket.on('exec',(msg) =>{$("#exec_out").html(msg)});
-            socket.on('zscan',(msg) =>{console.log("zscan: "+msg)});
+            socket.on('zscan',(msg) =>{
+                $("#zscanstatus").html(msg)
+                if (msg.search("done")>-1) $("#do_zscan").attr("disabled",false);
+            });
 
             //auto zscan
             function zscan()
             {
+                $("#zscanstatus").html("starting...")
+                $("#do_zscan").attr("disabled",true)
                 z2 = $("#z2").val();
                 z1 = $("#posZ").val();
                 project = $("#project").val();
                 prefix  = $("#prefix").val(); 
                 user  = $("#prefix").val(); 
-
-                cmd = `python3 /home/pi/pithy/code/enderscope_z_scan.py prefix=${prefix} project=${project} user=${user} z1=${z1} z2=${z2}`
-                arb_exec(cmd,channel="zscan");
+                cmd = `python3 -u /home/pi/pithy/code/enderscope_z_scan.py prefix=${prefix} project=${project} user=${user} z1=${z1} z2=${z2}`
+                arb_proc(cmd,channel="zscan");
             }
 
             $("#do_zscan").click(zscan);
@@ -375,6 +384,7 @@
             $("#posX").change((ev)=>{$("#absmoveX").val($("#posX").val())})
             $("#posY").change((ev)=>{$("#absmoveY").val($("#posY").val())})
             $("#posZ").change((ev)=>{$("#absmoveZ").val($("#posZ").val())})
+
 
             //stop the scroll 
             window.addEventListener("keydown", function(e) {
