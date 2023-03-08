@@ -265,7 +265,7 @@ app.get('/lastread/',function(req,res){
 //read buffer
 app.get('/read/', function(req, res){ res.send(buf) });
 
-
+if (process.env.CADET=="true") setTimeout(()=>{sender=true},10000);
 setInterval(()=>{serialPort.write("M114\r\n")},250)
 
 //weak interface
