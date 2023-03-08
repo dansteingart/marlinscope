@@ -267,7 +267,8 @@ app.get('/read/', function(req, res){ res.send(buf) });
 
 sender = false;
 if (process.env.CADET=="true") setTimeout(()=>{sender=true},10000);
-if (sender) setInterval(()=>{serialPort.write("M114\r\n")},250);
+else sender = true;
+setInterval(()=>{if (sender) serialPort.write("M114\r\n")},250);
 
 //weak interface
 app.get('/', function(req, res){ res.sendFile(__dirname + '/static/html/index.html');});
