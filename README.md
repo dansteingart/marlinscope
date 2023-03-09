@@ -12,9 +12,9 @@ This sounds janky, but the results are pretty fantastic. Large area HDR microsco
 
 Marlinscope is node driven web app built on the bones of [nodeforwarder](https://github.com/dansteingart/nodeforwarder). It provides three web interfaces
 
-- Camera and stage control ( root url)
+- Camera and stage control (`/`)
 - Serial port spy for gcode putzing (`/serial`)
-- A simple gallery for viewinng images you've snapped.
+- A simple gallery for viewinng images you've snapped ('/projects').
 
 Like all my webtype code, it has a barebones low friction interface with a ton of poorly documented features and easter eggs that I code in at whim. 
 
