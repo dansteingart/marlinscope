@@ -70,7 +70,7 @@
             <tr><td>X</td><td><input id='absmoveX'> </input>mm</td><td><button id="absmove">go</button></td></tr>
             <tr><td>Y</td><td><input id='absmoveY'> </input>mm</td></tr>
             <tr><td>Z</td><td><input id='absmoveZ'> </input>mm</td></tr>
-            <tr><td><button id="zero">zero</button></td></tr>
+            <tr><td><button id="zero">zero</button></td><td><button id="home">⌂</button></td></tr>
         </table>
         </div>
 
@@ -218,6 +218,7 @@
             )
 
             $("#zero").click(()=>{$.post(`/write`,data={'payload':`G92 X0 Y0 Z0\n`})})
+            $("#home").click(()=>{home();})
 
             //Let's execute arbirary code!
             $("#exec_send").click(()=>{arb_exec($("#exec_in").val())})
