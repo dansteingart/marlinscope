@@ -260,7 +260,8 @@
             
             function steppers_off(){$.get(`/writecf/M18 X Y Z`)}
 
-
+            function home(){$.post(`/write`,data={'payload':'G28\n'})}    
+        
             function snapshot()
             {
                 tt = new Date()
