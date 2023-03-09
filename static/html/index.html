@@ -288,14 +288,17 @@
                 xy = parseFloat($("#movexy").val())
                 if ($("input").is(":focus") == false & $("textarea").is(":focus") == false)
                 {
+                    var fac = 1;
+                    if (e.shiftKey) fac = 10;
                     switch(e.originalEvent.keyCode)
                     {
-                        case 37: move(-1*xy,0,0); break;
-                        case 39: move(1*xy,0,0);break;
-                        case 38: move(0,1*xy,0);break;
-                        case 40: move(0,-1*xy,0);break;
-                        case 87: move(0,0,zz);break;
-                        case 83: move(0,0,-1*zz);break;
+                        
+                        case 37: move(-fac*xy,0,0); break;
+                        case 39: move(fac*xy,0,0);break;
+                        case 38: move(0,fac*xy,0);break;
+                        case 40: move(0,-fac*xy,0);break;
+                        case 87: move(0,0,fac*zz);break;
+                        case 83: move(0,0,-fac*zz);break;
                         case 77: get_position();break;
                         case 79: steppers_off();break;
                         case 67: snapshot();break;
