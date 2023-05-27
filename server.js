@@ -99,17 +99,21 @@ function parse_v4l2_controls(str)
 	obj = {}
 	for (c in cntls)
 	{
-		cntl = cntls[c].trim().split(":")
-		nn = cntl[0].split(" ")[0]
-		obj[nn] = {}
-		obj[nn]['hex']  = cntl[0].split(" ")[1]
-		obj[nn]['type'] = cntl[0].split(" ")[2]
-		for (a in cntl[1].trim().split(" "))
+		if (cntls[c].search(":") > -1)
 		{
-			aa = cntl[1].trim().split(" ")[a].split("=");
-			obj[nn][aa[0]]=aa[1]
+			cntl = cntls[c].trim().split(":")
+			nn = cntl[0].split(" ")[0]
+			obj[nn] = {}
+			obj[nn]['hex']  = cntl[0].split(" ")[1]
+			obj[nn]['type'] = cntl[0].split(" ")[2]
+			for (a in cntl[1].trim().split(" "))
+			{
+				aa = cntl[1].trim().split(" ")[a].split("=");
+				obj[nn][aa[0]]=aa[1]
+			}
 		}
 	}
+	
 	return obj
 }
 
@@ -192,6 +196,7 @@ app.post("/proc",function(req,res){
 //get and parse out v42l controls as JSON
 app.post("/v4l2-ctl-list",function(req,res){    
 	exec("v4l2-ctl -l", (error, stdout, stderr) => {
+		console.log(stdout)
 		ctls = parse_v4l2_controls(stdout)
 		res.send({'status':'success','stdout':stdout,'stderr':stderr,'ctls':ctls})
 	})

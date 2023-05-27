@@ -125,6 +125,7 @@
             function get_v4l2_ctl(){
                 $.post(`/v4l2-ctl-list`,
                         (data)=>{
+                            console.log(data)
                             v4l2_ctl = parse_v4l2_controls(data['stdout']);
                             v4l2_tab = make_v4l2_table(v4l2_ctl);
                             $("#v4l2_table").html(v4l2_tab);
@@ -178,6 +179,8 @@
                 obj = {}
                 for (c in cntls)
                 {
+                    if (cntls[c].search(":") > -1) 
+                    {
                     cntl = cntls[c].trim().split(":")
                     name = cntl[0].split(" ")[0]
                     obj[name] = {}
@@ -189,6 +192,7 @@
                         obj[name][aa[0]]=aa[1]
                     }
                 }
+            }
                 return obj
             }
 
