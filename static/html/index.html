@@ -35,7 +35,7 @@
         <div id="image" class="img"></div>
         <h1>MarlinScope</h1>
         <div id="status_shell" class="status"><span id="status"></span></div>
-        <table>
+        <table id = "stage_std">
             <tr><td>move x/y</td><td><input id='movexy' value=0.2> </input>mm</td></tr>
             <tr><td>move z</td><td><input id='movez' value=0.02> </input>mm</td></tr>
             <tr><td>X</td><td><input id='posX' value=1 readonly> </input>mm</td><td><button attr='mvb' id='xb' title='⬅️'>x-</button><button attr='mvb' id='xf' title='➡️'>x+</button></td></tr>
@@ -83,8 +83,24 @@
 
     
     <script>
+            $.get("/get_camera_port",(data)=>{
+            
             surl = `http://${window.location.hostname}:${window.location.port}`
-            curl = `http://${window.location.hostname}:8181`
+            curl = `http://${window.location.hostname}:${data['camera_port']}`
+            $("#image").html(`<img src="${curl}/.?action=stream">`)
+  
+            })
+
+            $.get("/get_current_position",(data)=>{
+                if (data['current_position']['status'] == "no stage") {
+                    $("#stage_std").hide()
+                    $("#zscan_head").hide()
+                    $("#abs_move_head").hide()
+                    $("#v4l2_table").toggle()
+
+                }
+                }
+            )
 
             var socket = io();
             socket.on('data', (msg) => {find_position(msg)})
@@ -369,7 +385,6 @@
 
 
             //on load
-            $("#image").html(`<img src="${curl}/.?action=stream">`)
 
             //fill meta from cookie
             set_meta()

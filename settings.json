@@ -1,4 +1,5 @@
 {
     "projects_path":"files",
-    "snapshot_url":"http://localhost:8181/snapshot"
+    "camera_port" : 8080,
+    "snapshot_url":"http://localhost:8080/snapshot"
 }

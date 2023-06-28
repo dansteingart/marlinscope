@@ -65,33 +65,44 @@ var io = require('socket.io')(server,{cors:{methods: ["GET", "POST"]}});
 server.listen(hp);
 
 var sleep = require("sleep").sleep
-var SerialPort = require("serialport"); //per ak47 fix
-var serialPort = new SerialPort(sp,{baudRate: baud});
-serialPort.on("open", function () { console.log('open');});  
-
-serialPort.on("close", function () { 
-	console.log('closed, reopening');
-    	var serialPort = new SerialPort(sp,{baudrate: baud});
-}); 
-
-//sleep for x seconds for arduino serialport purposes
-for (var i=0; i<3; i++ ){console.log(i);sleep(1); }
 
 
-//On Data fill a circular buf of the specified length
-buf = ""
+if (sp != "NONE") 
+{
+	var SerialPort = require("serialport"); //per ak47 fix
+	var serialPort = new SerialPort(sp,{baudRate: baud});
+	serialPort.on("open", function () { console.log('open');});  
 
-//last heard
-var lh = 0;
-serialPort.on('data', function(data) {
-   if (logfile) {console.log(data.toString('binary')); }
-   buf += data.toString('binary') 
-   lh = new Date().getTime()
-   if (buf.length > blen) buf = buf.substr(buf.length-blen,buf.length) 
-   io.emit('data', data.toString('utf8'));
-   current_position = find_position(buf);   
-});
+	serialPort.on("close", function () { 
+		console.log('closed, reopening');
+			var serialPort = new SerialPort(sp,{baudrate: baud});
+	}); 
 
+	//sleep for x seconds for arduino serialport purposes
+	for (var i=0; i<3; i++ ){console.log(i);sleep(1); }
+
+
+	//On Data fill a circular buf of the specified length
+	buf = ""
+
+	//last heard
+	var lh = 0;
+	serialPort.on('data', function(data) {
+	if (logfile) {console.log(data.toString('binary')); }
+	buf += data.toString('binary') 
+	lh = new Date().getTime()
+	if (buf.length > blen) buf = buf.substr(buf.length-blen,buf.length) 
+	io.emit('data', data.toString('utf8'));
+	current_position = find_position(buf);   
+	});
+
+	sender = false;
+	if (process.env.CADET=="true") setTimeout(()=>{sender=true},10000);
+	else sender = true;
+	setInterval(()=>{if (sender) serialPort.write("M114\r\n")},250);
+	
+
+}
 //helper fuctions
 function parse_v4l2_controls(str)
 {
@@ -119,6 +130,8 @@ function parse_v4l2_controls(str)
 
 poslog = ""
 current_position = undefined
+if (sp == "NONE") current_position = {'status':'no stage'}
+
 function find_position(msg)
 {
 	poslog += msg
@@ -205,11 +218,16 @@ app.post("/v4l2-ctl-list",function(req,res){
 //send current position
 app.get("/get_current_position",(req,res)=>{res.send({'status':'success','current_position':current_position})});
 
+app.get("/get_camera_port",(req,res)=>{res.send({'status':'success','camera_port':settings['camera_port']})});
+
+
 app.post("/run",function(req,res){    
 	exec(req.body['payload'], (error, stdout, stderr) => {
 		res.send({'status':'success','stdout':stdout,'stderr':stderr})
 	})
 });
+
+settings      = JSON.parse(fs.readFileSync("settings.json"))
 
 //snapshot saving
 app.post("/snapshot",function(req,res){ 
@@ -222,7 +240,6 @@ app.post("/snapshot",function(req,res){
 	date          = x['date']
 	notes         = x['notes']
 	position      = x['position']
-	settings      = JSON.parse(fs.readFileSync("settings.json"))
 	projects_path = settings["projects_path"]
 	snapshot_url  = settings["snapshot_url"]
 
@@ -270,10 +287,6 @@ app.get('/lastread/',function(req,res){
 //read buffer
 app.get('/read/', function(req, res){ res.send(buf) });
 
-sender = false;
-if (process.env.CADET=="true") setTimeout(()=>{sender=true},10000);
-else sender = true;
-setInterval(()=>{if (sender) serialPort.write("M114\r\n")},250);
 
 //weak interface
 app.get('/', function(req, res){ res.sendFile(__dirname + '/static/html/index.html');});
@@ -283,7 +296,7 @@ app.get('/projects*', function(req, res){ res.sendFile( __dirname + '/static/htm
 
 //sockets
 io.on('connection', function(socket){
-	io.emit('data',buf);
+	if (sp != "NONE") io.emit('data',buf);
 	socket.on('input', function(msg){serialPort.write(msg+"\r\n")});
 });
 
