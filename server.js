@@ -32,9 +32,9 @@ TODO as of 2021-12-31:
 
 parts = process.argv
 
-if (parts.length < 6)
+if (parts.length < 2)
 {
-	console.log("usage: node server.js [HTTP PORT] [SERIAL PORT] [BAUD] [BUFFER LENGTH] [LOG=YES optional]")
+	console.log("usage: node nodeforwader.js [HTTP PORT] [SERIAL PORT (optional)] [BAUD (optional)] [BUFFER LENGTH (optional)]")
 	process.exit(1);
 }
 
@@ -42,116 +42,103 @@ else
 {
 	console.log(parts);
 	hp = parts[2]
-	sp = parts[3]
-	baud = parseInt(parts[4])
-	blen = parseInt(parts[5])
+	try{sp = parts[3]}             catch(e){sp = undefined} 
+	try{baud = parseInt(parts[4])} catch(e){baud = undefined}
+	try{blen = parseInt(parts[5])} catch(e){blen = 10000}
 }
-
-var logfile = false;
-if (parts.length == 7) logfile = true;
 
 const {exec} = require('child_process');
 const {spawn} = require('child_process');
 
 var bodyParser = require('body-parser');
-var express = require('express');
+var express = require('express')
 var app = express();
 var fs = require('fs');
-var glob = require("glob")
 var cors = require('cors')
 const server = require('http').createServer(app);
 var io = require('socket.io')(server,{cors:{methods: ["GET", "POST"]}});
 
+const SerialPort = require('serialport');
+
 server.listen(hp);
 
-var sleep = require("sleep").sleep
+function msleep(n) {
+	Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, n);
+  }
+  function sleep(n) {
+	msleep(n*1000);
+  }
+
+  var lh = 0;
 
 
-if (sp != "NONE") 
-{
-	var SerialPort = require("serialport"); //per ak47 fix
-	var serialPort = new SerialPort(sp,{baudRate: baud});
-	serialPort.on("open", function () { console.log('open');});  
 
-	serialPort.on("close", function () { 
-		console.log('closed, reopening');
-			var serialPort = new SerialPort(sp,{baudrate: baud});
-	}); 
+  let serialPort;
+  let currentPath = '/dev/tty-usbserial1'; // Default path
+  
+  function initializeSerialPort(path,baud) {
+	  if (serialPort && serialPort.isOpen) {
+		  console.log('Closing current serial port...');
+		  serialPort.close((err) => {
+			  if (err) {
+				  console.error('Error closing serial port:', err.message);
+			  } else {
+				  console.log('Serial port closed successfully.');
+				  createNewPort(path,baud);
+			  }
+		  });
+	  } else {
+		  createNewPort(path,baud);
+	  }
+  }
+  
+  function createNewPort(path,baud) {
+	  console.log(`Initializing serial port with path: ${path}`);
+	  serialPort = new SerialPort(path, { baudRate: baud });
+  
+	  // Attach event listeners
+	  serialPort.on('open', () => {
+		  console.log('Serial port opened:', path);
+		  if (process.env.CADET=="true") setTimeout(()=>{sender=true},10000);
+		  else sender = true;
+		  setInterval(()=>{if (sender) serialPort.write("M114\r\n")},250);
 
-	//sleep for x seconds for arduino serialport purposes
-	for (var i=0; i<3; i++ ){console.log(i);sleep(1); }
+	  });
+  
+		//last heard
+		serialPort.on('data', function(data) {
+		
+		
+		buf += data.toString('binary') 
+		lh = new Date().getTime()
+		if (buf.length > blen) buf = buf.substr(buf.length-blen,buf.length) 
+		io.emit('data', data.toString('utf8'));
+		
+		});
+  
+	  serialPort.on('error', (err) => {
+		  console.error('Serial port error:', err.message);
+	  });
+  
+	  serialPort.on('close', () => {
+		  console.log('Serial port closed');
+	  });
+  
+	  currentPath = path; // Update the current path
+  }
+  
+  // API to change the path dynamically
+  function changeSerialPortPath(newPath) {
+	  console.log(`Changing serial port path from ${currentPath} to ${newPath}`);
+	  initializeSerialPort(newPath);
+  }
+  
 
 
-	//On Data fill a circular buf of the specified length
-	buf = ""
+if (sp != undefined) initializeSerialPort(sp,baud)
 
-	//last heard
-	var lh = 0;
-	serialPort.on('data', function(data) {
-	if (logfile) {console.log(data.toString('binary')); }
-	buf += data.toString('binary') 
-	lh = new Date().getTime()
-	if (buf.length > blen) buf = buf.substr(buf.length-blen,buf.length) 
-	io.emit('data', data.toString('utf8'));
-	current_position = find_position(buf);   
-	});
-
-	sender = false;
-	if (process.env.CADET=="true") setTimeout(()=>{sender=true},10000);
-	else sender = true;
-	setInterval(()=>{if (sender) serialPort.write("M114\r\n")},250);
-	
-
-}
-//helper fuctions
-function parse_v4l2_controls(str)
-{
-	cntls = str.trim().split("\n")
-	obj = {}
-	for (c in cntls)
-	{
-		if (cntls[c].search(":") > -1)
-		{
-			cntl = cntls[c].trim().split(":")
-			nn = cntl[0].split(" ")[0]
-			obj[nn] = {}
-			obj[nn]['hex']  = cntl[0].split(" ")[1]
-			obj[nn]['type'] = cntl[0].split(" ")[2]
-			for (a in cntl[1].trim().split(" "))
-			{
-				aa = cntl[1].trim().split(" ")[a].split("=");
-				obj[nn][aa[0]]=aa[1]
-			}
-		}
-	}
-	
-	return obj
-}
-
-poslog = ""
-current_position = undefined
-if (sp == "NONE") current_position = {'status':'no stage'}
-
-function find_position(msg)
-{
-	poslog += msg
-	pat = /(?=X)(.*?)(?=Count)/g
-	last_pos = [...poslog.matchAll(pat)]
-	if (last_pos.length > 0)
-	{
-		out = parse_position(last_pos[last_pos.length-1][0])
-		poslog="";
-		return out
-	}
-}
-
-function parse_position(str)
-{
-	parts = str.trim().split(" ")
-	obj = {}
-	for (p in parts) obj[parts[p].split(":")[0]] = parts[p].split(":")[1]
-	return obj
-}
+//On Data fill a circular buf of the specified length
+buf = ""
 
 
 
@@ -173,6 +160,17 @@ app.get('/write/*',function(req,res){
 	serialPort.write(toSend)
 	res.send(toSend)
 });
+
+massage = undefined
+
+  // Attempt to reconnect the serial port
+app.get('/reconnect', async (req, res) => {initializeSerialPort(sp,baud); res.send("foo") });
+
+app.get('/disconnect', async (req, res) => {try{serialPort.close()} catch(e){console.log(e)}; res.send("foo")});
+
+app.post('/reconnect',async (req, res) => {x=req.body;initializeSerialPort(x['sp'],parseInt(['baud'])); res.send("foo") })
+  
+app.get("/list_ports", async(req,res)=>{res.send(await SerialPort.list())});
 
 app.get('/writecf/*',function(req,res){	
 	toSend = req.originalUrl.replace("/writecf/","")
@@ -290,7 +288,7 @@ app.get('/read/', function(req, res){ res.send(buf) });
 
 //weak interface
 app.get('/', function(req, res){ res.sendFile(__dirname + '/static/html/index.html');});
-app.get('/serial',   function(req, res){ res.sendFile( __dirname + '/static/html/serial.html');});
+app.get('/console',   function(req, res){ res.sendFile( __dirname + '/static/html/console.html');});
 app.get('/projects*', function(req, res){ res.sendFile( __dirname + '/static/html/projects.html');});
 
 
@@ -299,4 +297,62 @@ io.on('connection', function(socket){
 	if (sp != "NONE") io.emit('data',buf);
 	socket.on('input', function(msg){serialPort.write(msg+"\r\n")});
 });
+
+
+
+
+//marklin functions
+//helper fuctions
+function parse_v4l2_controls(str)
+{
+	cntls = str.trim().split("\n")
+	obj = {}
+	for (c in cntls)
+	{
+		if (cntls[c].search(":") > -1)
+		{
+			cntl = cntls[c].trim().split(":")
+			nn = cntl[0].split(" ")[0]
+			obj[nn] = {}
+			obj[nn]['hex']  = cntl[0].split(" ")[1]
+			obj[nn]['type'] = cntl[0].split(" ")[2]
+			for (a in cntl[1].trim().split(" "))
+			{
+				aa = cntl[1].trim().split(" ")[a].split("=");
+				obj[nn][aa[0]]=aa[1]
+			}
+		}
+	}
+	
+	return obj
+}
+
+
+
+
+poslog = ""
+current_position = undefined
+if (sp == "NONE") current_position = {'status':'no stage'}
+
+
+function find_position(msg)
+{
+	poslog += msg
+	pat = /(?=X)(.*?)(?=Count)/g
+	last_pos = [...poslog.matchAll(pat)]
+	if (last_pos.length > 0)
+	{
+		out = parse_position(last_pos[last_pos.length-1][0])
+		poslog="";
+		return out
+	}
+}
+
+function parse_position(str)
+{
+	parts = str.trim().split(" ")
+	obj = {}
+	for (p in parts) obj[parts[p].split(":")[0]] = parts[p].split(":")[1]
+	return obj
+}
 
