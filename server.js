@@ -49,7 +49,7 @@ else
 
 const {exec} = require('child_process');
 const {spawn} = require('child_process');
-
+var glob = require("glob");
 var bodyParser = require('body-parser');
 var express = require('express')
 var app = express();
@@ -259,10 +259,14 @@ app.post("/snapshot",function(req,res){
 });
 
 //get projects
-app.post("/projects",(req,res)=>{
+app.post("/projects",async (req,res)=>{
 	x = req.body;
-	if (x['project'] == undefined) glob("files/*",(e,files)=>{res.send(files)})
-	else glob(`files/${x['project']}/*.jpg`,(e,files)=>{res.send(files)})
+	console.log(x)
+	if (x['project'] == undefined) files = await glob.glob("files/*")
+	else files = await glob.glob(`files/${x['project']}/*.jpg`)
+	//console.log(files)
+
+	res.send(files);
 })
 
 

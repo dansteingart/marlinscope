@@ -4,3 +4,4 @@ files/*
 .DS_Store
 scope_start.sh
 sobel/
+start.sh
