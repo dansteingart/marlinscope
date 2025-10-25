@@ -42,6 +42,36 @@
                 width: 200px;
                 vertical-align: middle;
                 margin: 0 10px;
+                -webkit-appearance: none;
+                appearance: none;
+                height: 4px;
+                background: #000;
+                outline: none;
+            }
+            .v4l2-slider::-webkit-slider-thumb {
+                -webkit-appearance: none;
+                appearance: none;
+                width: 8px;
+                height: 16px;
+                background: #000;
+                cursor: pointer;
+                border: none;
+            }
+            .v4l2-slider::-moz-range-thumb {
+                width: 8px;
+                height: 16px;
+                background: #000;
+                cursor: pointer;
+                border: none;
+            }
+            .v4l2-slider:disabled {
+                background: #ccc;
+            }
+            .v4l2-slider:disabled::-webkit-slider-thumb {
+                background: #999;
+            }
+            .v4l2-slider:disabled::-moz-range-thumb {
+                background: #999;
             }
             .v4l2-input {
                 width: 60px;
