@@ -25,10 +25,72 @@
                 color:green;
                 white-space:pre-wrap;
                 font-family: 'Courier New', Courier, monospace;
-                
+
             }
             td{vertical-align: top;}
- 
+
+            /* Camera control styles */
+            .v4l2-control-row {
+                margin-bottom: 10px;
+            }
+            .v4l2-label {
+                display: inline-block;
+                width: 200px;
+                cursor: help;
+            }
+            .v4l2-slider {
+                width: 200px;
+                vertical-align: middle;
+                margin: 0 10px;
+            }
+            .v4l2-input {
+                width: 60px;
+                text-align: center;
+            }
+            .v4l2-info {
+                font-size: 0.85em;
+                color: #666;
+                margin-left: 10px;
+            }
+
+            /* Tooltip styles */
+            .tooltip {
+                position: relative;
+                display: inline-block;
+            }
+            .tooltip .tooltiptext {
+                visibility: hidden;
+                width: 300px;
+                background-color: #333;
+                color: #fff;
+                text-align: left;
+                border-radius: 6px;
+                padding: 8px;
+                position: absolute;
+                z-index: 1;
+                bottom: 125%;
+                left: 50%;
+                margin-left: -150px;
+                opacity: 0;
+                transition: opacity 0.3s;
+                font-size: 0.9em;
+                line-height: 1.4;
+            }
+            .tooltip .tooltiptext::after {
+                content: "";
+                position: absolute;
+                top: 100%;
+                left: 50%;
+                margin-left: -5px;
+                border-width: 5px;
+                border-style: solid;
+                border-color: #333 transparent transparent transparent;
+            }
+            .tooltip:hover .tooltiptext {
+                visibility: visible;
+                opacity: 1;
+            }
+
         </style>
     </head>
     <body>
@@ -138,6 +200,99 @@
 
             v4l2_ctl = undefined
             kk = undefined
+
+            // Refresh v4l2 controls without toggling visibility
+            function refresh_v4l2_controls(){
+                $.post(`/v4l2-ctl-list`,
+                        (data)=>{
+                            console.log("Refreshing v4l2 controls...")
+                            v4l2_ctl = parse_v4l2_controls(data['stdout']);
+                            v4l2_tab = make_v4l2_table(v4l2_ctl);
+                            $("#v4l2_table").html(v4l2_tab);
+                            // Don't toggle - keep it visible
+
+                            // Re-attach event handlers
+                            attach_v4l2_handlers();
+                        }
+                    );
+            }
+
+            function attach_v4l2_handlers(){
+                // Handle checkbox controls
+                $('input[type=checkbox][attr=v4l2_cntl]').change((ev)=>
+                {
+                   value = ev.target.checked ? '1' : '0';
+                   cmd = `v4l2-ctl -d /dev/video0 -c ${ev.target.id.replace("#","")}=${value}`
+                   arb_exec(cmd)
+
+                   // Refresh controls after a short delay to update dependencies
+                   setTimeout(() => { refresh_v4l2_controls(); }, 200);
+                })
+
+                // Handle slider controls - sync with number input
+                $('input[attr=v4l2_slider]').on('input', (ev)=>
+                {
+                   // ev.target.id is the actual DOM id, which includes the # in the string
+                   // e.g., the id attribute is id='#brightness_slider', so ev.target.id = '#brightness_slider'
+                   sliderId = ev.target.id; // e.g., "#brightness_slider"
+                   controlId = sliderId.replace("_slider", ""); // e.g., "#brightness"
+
+                   console.log("Slider:", sliderId, "-> Control:", controlId, "Value:", ev.target.value);
+
+                   // The jQuery selector needs the id WITH the # already in it
+                   // Since controlId is already "#brightness", use it directly
+                   $('[id="' + controlId + '"]').val(ev.target.value);
+
+                   // Send command (strip the # for the command)
+                   cmd = `v4l2-ctl -d /dev/video0 -c ${controlId.replace("#","")}=${ev.target.value}`
+                   arb_exec(cmd)
+                })
+
+                // Handle number input controls (non-checkbox)
+                $('input[type=number][attr=v4l2_cntl]').on('input change', (ev)=>
+                {
+                   // ev.target.id includes the # in the string, e.g., "#brightness"
+                   controlId = ev.target.id;
+                   sliderId = controlId + "_slider"; // e.g., "#brightness_slider"
+
+                   console.log("Control:", controlId, "-> Slider:", sliderId, "Value:", ev.target.value);
+
+                   // Update corresponding slider if it exists
+                   sliderEl = $('[id="' + sliderId + '"]');
+                   if (sliderEl.length) {
+                       sliderEl.val(ev.target.value);
+                   }
+
+                   // Send command (strip the # for the command)
+                   cmd = `v4l2-ctl -d /dev/video0 -c ${controlId.replace("#","")}=${ev.target.value}`
+                   arb_exec(cmd)
+
+                   // Check if this is a control that might affect others (like auto_exposure, white_balance_automatic)
+                   controlName = controlId.replace("#", "");
+                   if (controlName.includes("auto") || controlName.includes("exposure") || controlName.includes("white_balance")) {
+                       // Refresh controls after a short delay to update dependencies
+                       setTimeout(() => { refresh_v4l2_controls(); }, 200);
+                   }
+                })
+
+                // Handle select/dropdown controls (menu types)
+                $('select[attr=v4l2_cntl]').change((ev)=>
+                {
+                   cmd = `v4l2-ctl -d /dev/video0 -c ${ev.target.id.replace("#","")}=${ev.target.value}`
+                   arb_exec(cmd)
+
+                   // Refresh controls after a short delay to update dependencies
+                   setTimeout(() => { refresh_v4l2_controls(); }, 200);
+                })
+
+                // Handle regular input controls (fallback)
+                $('input[attr=v4l2_cntl]:not([type=checkbox]):not([type=number])').change((ev)=>
+                {
+                   cmd = `v4l2-ctl -d /dev/video0 -c ${ev.target.id.replace("#","")}=${ev.target.value}`
+                   arb_exec(cmd)
+                })
+            }
+
             function get_v4l2_ctl(){
                 $.post(`/v4l2-ctl-list`,
                         (data)=>{
@@ -146,11 +301,9 @@
                             v4l2_tab = make_v4l2_table(v4l2_ctl);
                             $("#v4l2_table").html(v4l2_tab);
                             $("#v4l2_table").toggle();
-                            $('input[attr=v4l2_cntl]').change((ev)=>
-                            {
-                               cmd = `v4l2-ctl -d /dev/video0 -c ${ev.target.id.replace("#","")}=${ev.target.value}` 
-                               arb_exec(cmd)
-                            })
+
+                            // Attach event handlers
+                            attach_v4l2_handlers();
                             }
                         )
                     };
@@ -193,32 +346,139 @@
             {
                 cntls = str.trim().split("\n")
                 obj = {}
+                currentControl = null
+
                 for (c in cntls)
                 {
-                    if (cntls[c].search(":") > -1) 
+                    line = cntls[c].trim()
+
+                    // Check if this is a menu option line (starts with number and colon)
+                    if (line.match(/^\d+:/)) {
+                        if (currentControl && obj[currentControl]) {
+                            // This is a menu option
+                            if (!obj[currentControl]['menu_options']) {
+                                obj[currentControl]['menu_options'] = []
+                            }
+                            // Parse menu option: "1: Manual Mode"
+                            optMatch = line.match(/^(\d+):\s*(.+)/)
+                            if (optMatch) {
+                                obj[currentControl]['menu_options'].push({
+                                    value: optMatch[1],
+                                    label: optMatch[2]
+                                })
+                            }
+                        }
+                    }
+                    else if (line.search(":") > -1)
                     {
-                    cntl = cntls[c].trim().split(":")
-                    name = cntl[0].split(" ")[0]
-                    obj[name] = {}
-                    obj[name]['hex']  = cntl[0].split(" ")[1]
-                    obj[name]['type'] = cntl[0].split(" ")[2]
-                    for (a in cntl[1].trim().split(" "))
-                    {
-                        aa = cntl[1].trim().split(" ")[a].split("=");
-                        obj[name][aa[0]]=aa[1]
+                        // This is a control definition line
+                        cntl = line.split(":")
+                        name = cntl[0].split(" ")[0]
+                        currentControl = name
+                        obj[name] = {}
+                        obj[name]['hex']  = cntl[0].split(" ")[1]
+                        obj[name]['type'] = cntl[0].split(" ")[2]
+
+                        // Parse the right side of the colon for metadata
+                        rightSide = cntl[1].trim()
+                        parts = rightSide.split(" ")
+
+                        for (a in parts)
+                        {
+                            if (parts[a].indexOf("=") > -1) {
+                                aa = parts[a].split("=");
+                                obj[name][aa[0]] = aa[1]
+                            }
+                        }
+
+                        // Extract menu options if present (text in parentheses)
+                        menuMatch = rightSide.match(/\(([^)]+)\)/)
+                        if (menuMatch) {
+                            obj[name]['menu_text'] = menuMatch[1]
+                        }
+
+                        // Check for flags
+                        if (rightSide.indexOf("flags=") > -1) {
+                            flagMatch = rightSide.match(/flags=([^\s]+)/)
+                            if (flagMatch) {
+                                obj[name]['flags'] = flagMatch[1]
+                            }
+                        }
                     }
                 }
-            }
                 return obj
             }
 
             function make_v4l2_table(obj){
-                out = "<table style='visibility:inherit;'>"
+                out = "<div style='visibility:inherit;'>"
                 for (key in obj)
                 {
-                    out+=`<tr><td>${key}</td><td><input attr='v4l2_cntl' id='#${key}' value='${obj[key]['value']}'></td></tr>`
+                    ctrl = obj[key]
+
+                    // Build tooltip text
+                    tooltipText = `Type: ${ctrl['type']}<br>`;
+                    if (ctrl['min'] !== undefined) tooltipText += `Range: ${ctrl['min']} to ${ctrl['max']}<br>`;
+                    if (ctrl['step'] !== undefined) tooltipText += `Step: ${ctrl['step']}<br>`;
+                    if (ctrl['default'] !== undefined) tooltipText += `Default: ${ctrl['default']}<br>`;
+                    if (ctrl['flags'] !== undefined) tooltipText += `Flags: ${ctrl['flags']}<br>`;
+                    if (ctrl['menu_text'] !== undefined) tooltipText += `Current: ${ctrl['menu_text']}<br>`;
+                    tooltipText += `Hex: ${ctrl['hex']}`;
+
+                    out += `<div class='v4l2-control-row'>`;
+
+                    // Label with tooltip
+                    out += `<span class='v4l2-label tooltip'>${key}`;
+                    out += `<span class='tooltiptext'>${tooltipText}</span>`;
+                    out += `</span>`;
+
+                    // Determine control type and render appropriately
+                    if (ctrl['type'] === '(bool)') {
+                        // Boolean toggle
+                        checked = (ctrl['value'] == '1') ? 'checked' : '';
+                        out += `<input type='checkbox' attr='v4l2_cntl' id='#${key}' ${checked} value='${ctrl['value']}'>`;
+                    } else if (ctrl['type'] === '(int)' && ctrl['min'] !== undefined && ctrl['max'] !== undefined) {
+                        // Integer with slider
+                        min = parseInt(ctrl['min'])
+                        max = parseInt(ctrl['max'])
+                        step = ctrl['step'] !== undefined ? parseInt(ctrl['step']) : 1
+                        value = parseInt(ctrl['value'])
+
+                        // Check if inactive
+                        disabled = (ctrl['flags'] === 'inactive') ? 'disabled' : '';
+
+                        out += `<input type='range' class='v4l2-slider' attr='v4l2_slider' id='#${key}_slider' `;
+                        out += `min='${min}' max='${max}' step='${step}' value='${value}' ${disabled}>`;
+                        out += `<input type='number' class='v4l2-input' attr='v4l2_cntl' id='#${key}' `;
+                        out += `min='${min}' max='${max}' step='${step}' value='${value}' ${disabled}>`;
+
+                        if (disabled) {
+                            out += `<span class='v4l2-info'>(inactive)</span>`;
+                        }
+                    } else if (ctrl['type'] === '(menu)') {
+                        // Menu type - show as dropdown select if menu_options available
+                        if (ctrl['menu_options'] && ctrl['menu_options'].length > 0) {
+                            out += `<select class='v4l2-input' attr='v4l2_cntl' id='#${key}' style='width:auto;'>`;
+                            for (let i = 0; i < ctrl['menu_options'].length; i++) {
+                                opt = ctrl['menu_options'][i];
+                                selected = (opt.value == ctrl['value']) ? 'selected' : '';
+                                out += `<option value='${opt.value}' ${selected}>${opt.value}: ${opt.label}</option>`;
+                            }
+                            out += `</select>`;
+                        } else {
+                            // Fallback to number input if no menu options
+                            out += `<input type='number' class='v4l2-input' attr='v4l2_cntl' id='#${key}' value='${ctrl['value']}'>`;
+                            if (ctrl['menu_text'] !== undefined) {
+                                out += `<span class='v4l2-info'>${ctrl['menu_text']}</span>`;
+                            }
+                        }
+                    } else {
+                        // Default to regular input
+                        out += `<input class='v4l2-input' attr='v4l2_cntl' id='#${key}' value='${ctrl['value']}'>`;
+                    }
+
+                    out += `</div>`;
                 }
-                out+="</table>"
+                out+="</div>"
                 return out
 
             }

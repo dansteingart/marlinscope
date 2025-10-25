@@ -205,8 +205,8 @@ app.post("/proc",function(req,res){
 
 
 //get and parse out v42l controls as JSON
-app.post("/v4l2-ctl-list",function(req,res){    
-	exec("v4l2-ctl -l", (error, stdout, stderr) => {
+app.post("/v4l2-ctl-list",function(req,res){
+	exec("v4l2-ctl --list-ctrls-menus", (error, stdout, stderr) => {
 		console.log(stdout)
 		ctls = parse_v4l2_controls(stdout)
 		res.send({'status':'success','stdout':stdout,'stderr':stderr,'ctls':ctls})
