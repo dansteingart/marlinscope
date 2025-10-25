@@ -575,22 +575,21 @@
         
             function snapshot()
             {
-                tt = new Date()
+                // Only send user-entered metadata
+                // Server will add position, camera settings, and timestamp
                 data = {}
-                data['project'] =$("#project").val()
+                data['project'] = $("#project").val()
                 data['prefix'] = $("#prefix").val()
-                data['user']   = $("#user").val()
-                data['position'] = {'x':$("#posX").val(),'y':$("#posY").val(),'z':$("#posZ").val()}
+                data['user'] = $("#user").val()
                 data['notes'] = $("#notes").val()
-                data['camera'] = get_camera_state();
-                data['date'] = tt.getTime();
-                console.log(data)
+
+                console.log("Sending snapshot request:", data)
                 $.post("/snapshot",data,(res)=>{
-                    console.log(res);
+                    console.log("Snapshot response:", res);
                     $("#status").html(`saved ${$("#project").val()}/${$("#prefix").val()}`)
                     $("#status").fadeIn()
                     $("#status").fadeOut("slow",()=>{$("#status").html("")})
-; 
+;
                 })
             }
 

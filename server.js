@@ -107,13 +107,17 @@ function msleep(n) {
   
 		//last heard
 		serialPort.on('data', function(data) {
-		
-		
-		buf += data.toString('binary') 
+
+
+		buf += data.toString('binary')
 		lh = new Date().getTime()
-		if (buf.length > blen) buf = buf.substr(buf.length-blen,buf.length) 
+		if (buf.length > blen) buf = buf.substr(buf.length-blen,buf.length)
 		io.emit('data', data.toString('utf8'));
-		
+
+		// Parse position from serial data
+		pos = find_position(data.toString('utf8'));
+		if (pos) current_position = pos;
+
 		});
   
 	  serialPort.on('error', (err) => {
@@ -228,32 +232,51 @@ app.post("/run",function(req,res){
 settings      = JSON.parse(fs.readFileSync("settings.json"))
 
 //snapshot saving
-app.post("/snapshot",function(req,res){ 
+app.post("/snapshot",function(req,res){
 	try  {x = JSON.parse(req['body'])}
-	catch (e)  {x = req['body']}   
+	catch (e)  {x = req['body']}
 	console.log(x)
+
+	// User-provided metadata from client
 	project       = x['project'].replaceAll("/","_")
 	prefix        = x['prefix']
 	user          = x['user']
-	date          = x['date']
 	notes         = x['notes']
-	position      = x['position']
+	date          = new Date().getTime() // Server timestamp
+
 	projects_path = settings["projects_path"]
 	snapshot_url  = settings["snapshot_url"]
 
+	// Get current position from server (not client)
+	position = current_position || {X: '0', Y: '0', Z: '0'}
 
-	//we're going to save the snapshot to a give (project) (dir) with the following format
-	fn = `${projects_path}/${project}/${prefix}_${position['x']}_${position['y']}_${position['z']}_${date}.jpg`
-	fnl = fn.replace(".jpg",".json")
-	cmd = `curl ${snapshot_url} --create-dirs --output ${fn}`
-	log = req.body
-	log['fn'] = fn
-	console.log(log)
-	exec(cmd, (error, stdout, stderr) => {
+	// Get current camera settings from v4l2
+	exec("v4l2-ctl --list-ctrls-menus", (v4l2_error, v4l2_stdout, v4l2_stderr) => {
+		camera_settings = parse_v4l2_controls(v4l2_stdout)
 
-		var logStream = fs.createWriteStream(fnl, {flags: 'a'});
-		logStream.end(JSON.stringify(log)+"\n");
-		res.send({'status':'success','stdout':stdout,'stderr':stderr})
+		// Build complete log object with server-side data
+		log = {
+			project: project,
+			prefix: prefix,
+			user: user,
+			notes: notes,
+			date: date,
+			position: position,
+			camera: camera_settings
+		}
+
+		//we're going to save the snapshot to a give (project) (dir) with the following format
+		fn = `${projects_path}/${project}/${prefix}_${position['X']}_${position['Y']}_${position['Z']}_${date}.jpg`
+		fnl = fn.replace(".jpg",".json")
+		cmd = `curl ${snapshot_url} --create-dirs --output ${fn}`
+		log['fn'] = fn
+		console.log(log)
+
+		exec(cmd, (error, stdout, stderr) => {
+			var logStream = fs.createWriteStream(fnl, {flags: 'a'});
+			logStream.end(JSON.stringify(log)+"\n");
+			res.send({'status':'success','stdout':stdout,'stderr':stderr,'log':log})
+		})
 	})
 
 });
