@@ -138,12 +138,12 @@
         <h2 id="meta_head">Meta</h2>
         <div id="meta_table">
             <table>
-                <tr><td>project</td><td><input   attr="meta" id='project' class="meta"> </input></td><td><button id="snapshot">📸</button></td></tr>
-                <tr><td>prefix</td><td><input    attr="meta" id='prefix' class="meta" value="snap"> </input></td></tr>
-                <tr><td>user</td><td><input      attr="meta" id='user' class="meta"> </input></td></tr>
+                <tr><td>project</td><td><input   attr="meta" id='project' class="meta" list="project_list" autocomplete="off"> </input><datalist id="project_list"></datalist></td><td><button id="snapshot">📸</button></td></tr>
+                <tr><td>prefix</td><td><input    attr="meta" id='prefix' class="meta" value="snap" list="prefix_list" autocomplete="off"> </input><datalist id="prefix_list"></datalist></td></tr>
+                <tr><td>user</td><td><input      attr="meta" id='user' class="meta" list="user_list" autocomplete="off"> </input><datalist id="user_list"></datalist></td></tr>
                 <tr><td>date/time</td><td><input             id='datetime' class="meta" readonly> </input></td></tr>
                 <tr><td>notes</td><td><textarea  attr="meta" id='notes' class="meta"></textarea></td></tr>
-                
+
             </table>
         </div>
 
@@ -589,7 +589,9 @@
                     $("#status").html(`saved ${$("#project").val()}/${$("#prefix").val()}`)
                     $("#status").fadeIn()
                     $("#status").fadeOut("slow",()=>{$("#status").html("")})
-;
+
+                    // Refresh autocomplete suggestions after saving
+                    load_autocomplete_suggestions();
                 })
             }
 
@@ -673,10 +675,45 @@
             }
 
 
+            // Load autocomplete suggestions from existing metadata
+            function load_autocomplete_suggestions() {
+                $.get("/metadata_suggestions", (data) => {
+                    if (data.status === 'success') {
+                        console.log("Loaded autocomplete suggestions:", data);
+
+                        // Populate project datalist
+                        const projectList = $("#project_list");
+                        projectList.empty();
+                        data.projects.forEach(project => {
+                            projectList.append(`<option value="${project}">`);
+                        });
+
+                        // Populate prefix datalist
+                        const prefixList = $("#prefix_list");
+                        prefixList.empty();
+                        data.prefixes.forEach(prefix => {
+                            prefixList.append(`<option value="${prefix}">`);
+                        });
+
+                        // Populate user datalist
+                        const userList = $("#user_list");
+                        userList.empty();
+                        data.users.forEach(user => {
+                            userList.append(`<option value="${user}">`);
+                        });
+                    } else {
+                        console.error("Failed to load autocomplete suggestions:", data.message);
+                    }
+                });
+            }
+
             //on load
 
             //fill meta from cookie
             set_meta()
+
+            //load autocomplete suggestions
+            load_autocomplete_suggestions()
 
             //reset camera
             arb_exec(`

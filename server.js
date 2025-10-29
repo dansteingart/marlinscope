@@ -292,6 +292,48 @@ app.post("/projects",async (req,res)=>{
 	res.send(files);
 })
 
+//get autocomplete suggestions from existing metadata
+app.get("/metadata_suggestions", async (req,res)=>{
+	try {
+		// Find all JSON files in the files directory
+		const jsonFiles = await glob.glob("files/**/*.json");
+
+		const projects = new Set();
+		const prefixes = new Set();
+		const users = new Set();
+
+		// Parse each JSON file and extract metadata
+		for (const file of jsonFiles) {
+			try {
+				const content = fs.readFileSync(file, 'utf8');
+				const data = JSON.parse(content);
+
+				if (data.project) projects.add(data.project);
+				if (data.prefix) prefixes.add(data.prefix);
+				if (data.user) users.add(data.user);
+			} catch (e) {
+				// Skip files that can't be parsed
+				console.log(`Skipping ${file}: ${e.message}`);
+			}
+		}
+
+		res.send({
+			status: 'success',
+			projects: Array.from(projects).sort(),
+			prefixes: Array.from(prefixes).sort(),
+			users: Array.from(users).sort()
+		});
+	} catch (error) {
+		res.send({
+			status: 'error',
+			message: error.message,
+			projects: [],
+			prefixes: [],
+			users: []
+		});
+	}
+})
+
 
 
 //#expects data to be in {'payload':data} format
